@@ -2,40 +2,57 @@ package br.com.daniel.Api_Imdb.controllers.rest;
 
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.client.RestTemplate;
+
+import br.com.daniel.Api_Imdb.controllers.rest.service.HTMLGenerator;
+import br.com.daniel.Api_Imdb.controllers.rest.service.ImdbApiClient;
 
 @RestController
 public class MoviesControllerRest {
 
-	private RestTemplate restTemplate;
+	private ListaDeMovies movies = new ListaDeMovies(new ArrayList<>());
+	private ImdbApiClient imdbApiClient;
 
 	@Autowired
-	public MoviesControllerRest(RestTemplate restTemplate) {
-		this.restTemplate = restTemplate;
+	public MoviesControllerRest(ImdbApiClient imdbApiClient) {
+		this.imdbApiClient = imdbApiClient;
 	}
-
+	
 	@GetMapping("/rest/top250")
-	 public ListaDeMovies getTop250Filmes() throws FileNotFoundException {
+	public ListaDeMovies getTop250Filmes(@RequestParam(required = false) String title) throws FileNotFoundException {
 
-        ResponseEntity<ListaDeMovies> response =
-                this.restTemplate.getForEntity("https://imdb-api.com/en/API/Top250Movies/k_cd7hvpny", ListaDeMovies.class);
+		ListaDeMovies response = imdbApiClient.getBody();
 
-        PrintWriter writer = new PrintWriter("src/main/resources/templates/content.html");
-        new HTMLGenerator(writer).generate(response.getBody());
-        writer.close();
+		if(title == null ) {
+			this.movies.items.addAll(response.items());   
+		}else {
+			this.movies.items().addAll(response.items().stream()
+                    .filter(movie -> movie.title.contains(title))
+                    .collect(Collectors.toList()));
+		}
+		
+		PrintWriter writer = new PrintWriter("src/main/resources/templates/content.html");
+		new HTMLGenerator(writer).generate(movies);
+		
+		writer.close();
 
-        return response.getBody();
+		return movies;
 
 	}
 
-	record Movie(String title, String image, String year, String imDbRating, String rank, String crew){}
-	
-	
-    record ListaDeMovies(List<Movie> items){}
+	public record Movie(String title, String year, String image, String imDbRating, String rank, String id,
+			String crew) {
+	}
+
+	public record ListaDeMovies(List<Movie> items) {
+	}
+
 }
